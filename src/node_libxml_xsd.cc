@@ -32,10 +32,36 @@ NAN_METHOD(SchemaSync) {
     v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
   	Nan::HandleScope scope;
 
-    libxmljs::XmlDocument* doc = Nan::ObjectWrap::Unwrap<libxmljs::XmlDocument>(info[0]->ToObject(context).ToLocalChecked());
+    // Instead of unwrapping, get the XML string from the document
+    v8::Local<v8::Object> docObj = info[0]->ToObject(context).ToLocalChecked();
+    
+    // Call toString() method on the document to get XML string
+    v8::Local<v8::String> toStringKey = Nan::New("toString").ToLocalChecked();
+    v8::Local<v8::Value> toStringValue = docObj->Get(context, toStringKey).ToLocalChecked();
+    
+    if (!toStringValue->IsFunction()) {
+        return Nan::ThrowError("Document object does not have toString method");
+    }
+    
+    v8::Local<v8::Function> toStringFunc = v8::Local<v8::Function>::Cast(toStringValue);
+    v8::Local<v8::Value> xmlStringValue = toStringFunc->Call(context, docObj, 0, nullptr).ToLocalChecked();
+    
+    if (!xmlStringValue->IsString()) {
+        return Nan::ThrowError("toString did not return a string");
+    }
+    
+    // Convert to C string
+    Nan::Utf8String xmlString(xmlStringValue);
+    
+    // Parse the XML string to create xmlDoc
+    xmlDocPtr xmlDoc = xmlReadMemory(*xmlString, xmlString.length(), NULL, NULL, 0);
+    if (xmlDoc == NULL) {
+        return Nan::ThrowError("Failed to parse XML document");
+    }
 
-    xmlSchemaParserCtxtPtr parser_ctxt = xmlSchemaNewDocParserCtxt(doc->xml_obj);
+    xmlSchemaParserCtxtPtr parser_ctxt = xmlSchemaNewDocParserCtxt(xmlDoc);
     if (parser_ctxt == NULL) {
+        xmlFreeDoc(xmlDoc);
         return Nan::ThrowError("Could not create context for schema parser");
     }
     xmlSchemaValidityErrorFunc err;
@@ -44,6 +70,9 @@ NAN_METHOD(SchemaSync) {
     xmlSchemaGetParserErrors(parser_ctxt, &err, &warn, &ctx);
     xmlSchemaSetParserErrors(parser_ctxt, err, (xmlSchemaValidityWarningFunc) none, ctx);
     xmlSchemaPtr schema = xmlSchemaParse(parser_ctxt);
+    xmlSchemaFreeParserCtxt(parser_ctxt);
+    xmlFreeDoc(xmlDoc);
+    
     if (schema == NULL) {
         return Nan::ThrowError("Invalid XSD schema");
     }
@@ -63,16 +92,44 @@ NAN_METHOD(ValidateSync) {
     xmlResetLastError();
     xmlSetStructuredErrorFunc(reinterpret_cast<void *>(&errorsList), errorFunc);
 
-    // Extract schema an document to validate from their wrappers
+    // Extract schema from wrapper
     Schema* schema = Nan::ObjectWrap::Unwrap<Schema>(info[0]->ToObject(context).ToLocalChecked());
-    libxmljs::XmlDocument* doc = Nan::ObjectWrap::Unwrap<libxmljs::XmlDocument>(info[1]->ToObject(context).ToLocalChecked());
+    
+    // Get XML string from document object
+    v8::Local<v8::Object> docObj = info[1]->ToObject(context).ToLocalChecked();
+    
+    // Call toString() method on the document to get XML string
+    v8::Local<v8::String> toStringKey = Nan::New("toString").ToLocalChecked();
+    v8::Local<v8::Value> toStringValue = docObj->Get(context, toStringKey).ToLocalChecked();
+    
+    if (!toStringValue->IsFunction()) {
+        return Nan::ThrowError("Document object does not have toString method");
+    }
+    
+    v8::Local<v8::Function> toStringFunc = v8::Local<v8::Function>::Cast(toStringValue);
+    v8::Local<v8::Value> xmlStringValue = toStringFunc->Call(context, docObj, 0, nullptr).ToLocalChecked();
+    
+    if (!xmlStringValue->IsString()) {
+        return Nan::ThrowError("toString did not return a string");
+    }
+    
+    // Convert to C string
+    Nan::Utf8String xmlString(xmlStringValue);
+    
+    // Parse the XML string to create xmlDoc
+    xmlDocPtr xmlDoc = xmlReadMemory(*xmlString, xmlString.length(), NULL, NULL, 0);
+    if (xmlDoc == NULL) {
+        return Nan::ThrowError("Failed to parse XML document");
+    }
 
     // Actual validation
     xmlSchemaValidCtxtPtr valid_ctxt = xmlSchemaNewValidCtxt(schema->schema_obj);
     if (valid_ctxt == NULL) {
+        xmlFreeDoc(xmlDoc);
         return Nan::ThrowError("Unable to create a validation context for the schema");
     }
-    xmlSchemaValidateDoc(valid_ctxt, doc->xml_obj);
+    xmlSchemaValidateDoc(valid_ctxt, xmlDoc);
+    xmlFreeDoc(xmlDoc);
 
 	  xmlSetStructuredErrorFunc(NULL, NULL);
 
