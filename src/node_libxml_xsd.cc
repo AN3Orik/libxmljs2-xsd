@@ -24,8 +24,8 @@ void none(void *ctx, const char *msg, ...) {
 
 // Used to store a list or validation errors
 void errorFunc(void* errs, xmlError* error) {
-  std::vector<xmlError*>* errors = reinterpret_cast<std::vector<xmlError*>*>(errs);
-  errors->push_back(error);
+  std::vector<xmlError>* errors = reinterpret_cast<std::vector<xmlError>*>(errs);
+  errors->push_back(*error);
 }
 
 NAN_METHOD(SchemaSync) {
@@ -88,13 +88,13 @@ NAN_METHOD(ValidateSync) {
 
     // Prepare the array of errors to be filled by validation
     // Local<Array> errors = Nan::New<Array>();
-    std::vector<xmlError*> errorsList;
+    std::vector<xmlError> errorsList;
     xmlResetLastError();
     xmlSetStructuredErrorFunc(reinterpret_cast<void *>(&errorsList), errorFunc);
 
     // Extract schema from wrapper
     Schema* schema = Nan::ObjectWrap::Unwrap<Schema>(info[0]->ToObject(context).ToLocalChecked());
-    
+
     // Get XML string from document object
     v8::Local<v8::Object> docObj = info[1]->ToObject(context).ToLocalChecked();
     
@@ -131,13 +131,13 @@ NAN_METHOD(ValidateSync) {
     xmlSchemaValidateDoc(valid_ctxt, xmlDoc);
     xmlFreeDoc(xmlDoc);
 
-	  xmlSetStructuredErrorFunc(NULL, NULL);
+	xmlSetStructuredErrorFunc(NULL, NULL);
 
     // Don't return the boolean result, instead return array of validation errors
     // will be empty if validation is ok
     Local<Array> errors = Array::New(isolate);
     for (unsigned int i = 0; i < errorsList.size(); i++ ) {
-      errors->Set(context, i, BuildSyntaxError(errorsList.at(i)));
+      errors->Set(context, i, BuildSyntaxError(&errorsList.at(i)));
     }
     info.GetReturnValue().Set(errors);
     xmlSchemaFreeValidCtxt(valid_ctxt);
