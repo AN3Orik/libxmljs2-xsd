@@ -17,6 +17,42 @@
 
 using namespace v8;
 
+struct ValidationErrorCopy {
+    std::string message;
+    int domain = 0;
+    int code = 0;
+    int level = 0;
+    int column = 0;
+    std::string file;
+    int line = 0;
+    std::string str1;
+    std::string str2;
+    std::string str3;
+    int int1 = 0;
+
+    // Helper function to safely copy from char* to std::string
+    static std::string safe_copy(const char* c_str) {
+        return c_str ? std::string(c_str) : std::string();
+    }
+
+    // Constructor to perform the deep copy from an xmlError struct
+    ValidationErrorCopy(const xmlError* error) {
+        if (error) {
+            message = safe_copy(error->message);
+            domain = error->domain;
+            code = error->code;
+            level = error->level;
+            column = error->int2; // In libxmljs, column is mapped from int2
+            file = safe_copy(error->file);
+            line = error->line;
+            str1 = safe_copy(error->str1);
+            str2 = safe_copy(error->str2);
+            str3 = safe_copy(error->str3);
+            int1 = error->int1;
+        }
+    }
+};
+
 void none(void *ctx, const char *msg, ...) {
   // do nothing
   return;
@@ -24,8 +60,8 @@ void none(void *ctx, const char *msg, ...) {
 
 // Used to store a list or validation errors
 void errorFunc(void* errs, xmlError* error) {
-  std::vector<xmlError>* errors = reinterpret_cast<std::vector<xmlError>*>(errs);
-  errors->push_back(*error);
+  std::vector<ValidationErrorCopy>* errors = reinterpret_cast<std::vector<ValidationErrorCopy>*>(errs);
+  errors->emplace_back(error);
 }
 
 NAN_METHOD(SchemaSync) {
@@ -88,7 +124,7 @@ NAN_METHOD(ValidateSync) {
 
     // Prepare the array of errors to be filled by validation
     // Local<Array> errors = Nan::New<Array>();
-    std::vector<xmlError> errorsList;
+    std::vector<ValidationErrorCopy> errorsList;
     xmlResetLastError();
     xmlSetStructuredErrorFunc(reinterpret_cast<void *>(&errorsList), errorFunc);
 
@@ -133,11 +169,29 @@ NAN_METHOD(ValidateSync) {
 
 	xmlSetStructuredErrorFunc(NULL, NULL);
 
-    // Don't return the boolean result, instead return array of validation errors
-    // will be empty if validation is ok
+    // Don't return the boolean result, instead return array of validation errors will be empty if validation is ok
     Local<Array> errors = Array::New(isolate);
     for (unsigned int i = 0; i < errorsList.size(); i++ ) {
-      errors->Set(context, i, BuildSyntaxError(&errorsList.at(i)));
+      const ValidationErrorCopy& copiedError = errorsList.at(i);
+      
+      // Create a temporary xmlError on the stack to pass to BuildSyntaxError.
+      xmlError tempError;
+      memset(&tempError, 0, sizeof(xmlError));
+      
+      // Populate the temporary struct with data from our safe copy
+      tempError.message = const_cast<char*>(copiedError.message.c_str());
+      tempError.domain = copiedError.domain;
+      tempError.code = copiedError.code;
+      tempError.level = static_cast<xmlErrorLevel>(copiedError.level);
+      tempError.int2 = copiedError.column;
+      tempError.file = const_cast<char*>(copiedError.file.c_str());
+      tempError.line = copiedError.line;
+      tempError.str1 = const_cast<char*>(copiedError.str1.c_str());
+      tempError.str2 = const_cast<char*>(copiedError.str2.c_str());
+      tempError.str3 = const_cast<char*>(copiedError.str3.c_str());
+      tempError.int1 = copiedError.int1;
+
+      errors->Set(context, i, BuildSyntaxError(&tempError));
     }
     info.GetReturnValue().Set(errors);
     xmlSchemaFreeValidCtxt(valid_ctxt);
