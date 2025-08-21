@@ -1,1 +1,36 @@
+# Build artifacts
 /build/
+*.log
+*.tgz
+
+# Development files
+/test/
+test-*.js
+/example-standalone/
+*.md
+!README.md
+.travis.yml
+appveyor.yml
+readme.hbs
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Node modules (should never be published)
+node_modules/
+
+# Source files (only compiled binaries should be distributed)
+/src/
+
+# Temporary files
+tmp/
+temp/
