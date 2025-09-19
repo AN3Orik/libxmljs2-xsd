@@ -5,7 +5,18 @@
   "main": "index.js",
   "scripts": {
     "test": "mocha test/index.js",
-    "docs": "jsdoc2md index.js --template readme.hbs > README.md"
+    "docs": "jsdoc2md index.js --template readme.hbs > README.md",
+    "install": "node-pre-gyp install --fallback-to-build",
+    "rebuild": "node-pre-gyp rebuild",
+    "package": "node-pre-gyp package",
+    "clean": "node-pre-gyp clean && rimraf build"
+  },
+  "binary": {
+    "module_name": "node-libxml-xsd",
+    "module_path": "./build/Release/",
+    "host": "https://github.com/cdegalitt/libxmljs2-xsd/releases/download/",
+    "remote_path": "v{version}",
+    "package_name": "{module_name}-v{version}-{node_abi}-{platform}-{arch}.tar.gz"
   },
   "keywords": [
     "xsd",
@@ -58,6 +69,11 @@
   "devDependencies": {
     "mocha": "^10.7.3",
     "should": "^13.2.3",
-    "jsdoc-to-markdown": "^9.0.2"
+    "jsdoc-to-markdown": "^9.0.2",
+    "rimraf": "^3.0.2"
+  },
+  "gypfile": true,
+  "engines": {
+    "node": ">=10.0.0"
   }
 }

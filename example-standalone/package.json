@@ -1,0 +1,9 @@
+{
+  "name": "libxmljs2-xsd-example",
+  "version": "1.0.0",
+  "description": "Example of using libxmljs2-xsd .node file directly",
+  "main": "index.js",
+  "dependencies": {
+    "libxmljs2": "^0.37.0"
+  }
+}
