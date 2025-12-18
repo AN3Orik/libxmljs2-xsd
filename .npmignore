@@ -29,7 +29,7 @@ readme.hbs
 node_modules/
 
 # Source files (only compiled binaries should be distributed)
-/src/
+# /src/
 
 # Temporary files
 tmp/
